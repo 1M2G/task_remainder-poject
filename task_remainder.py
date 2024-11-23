@@ -20,6 +20,12 @@ class Task:
         """Return a string representation of the task."""
         return f"Task: {self.name}, Type: {self.task_type}, Priority: {self.priority} - From {self.start_time:%H:%M} to {self.end_time:%H:%M}"
 
+    def __lt__(self, other):
+        """Define how to compare two Task objects."""
+        if not isinstance(other, Task):
+            return NotImplemented
+        return self.end_time < other.end_time  # Compare by end time (or use another field like start_time or priority)
+
 # Function to schedule tasks
 def schedule_tasks(tasks, max_time):
     """Use dynamic programming to schedule tasks for maximum priority."""
@@ -31,29 +37,35 @@ def schedule_tasks(tasks, max_time):
             dp[i] = max(dp[i], dp[i - duration] + task.priority)  # Maximize priority
     return dp[max_time]
 
-# QuickSort function for sorting tasks
-def quick_sort(tasks):
-    """Sort tasks using QuickSort."""
-    if len(tasks) <= 1:
-        return tasks
-    pivot = tasks[len(tasks) // 2]  # Choose a pivot task
-    left = [x for x in tasks if x < pivot]  # Tasks less than pivot
-    middle = [x for x in tasks if x == pivot]  # Tasks equal to pivot
-    right = [x for x in tasks if x > pivot]  # Tasks greater than pivot
-    return quick_sort(left) + middle + quick_sort(right)  # Return sorted tasks
+# Sorting function for tasks
+def sort_tasks(tasks, by="priority"):
+    """Sort tasks by priority, start time, end time, or task type."""
+    if by == "priority":
+        tasks.sort(key=lambda x: x.priority, reverse=True)  # Sort by priority (high to low)
+    elif by == "start_time":
+        tasks.sort(key=lambda x: x.start_time)  # Sort by start time
+    elif by == "end_time":
+        tasks.sort(key=lambda x: x.end_time)  # Sort by end time
+    elif by == "task_type":
+        tasks.sort(key=lambda x: x.task_type)  # Sort by task type
+    return tasks
 
 # Function to plot Gantt chart
 def plot_gantt_chart(tasks):
     """Create and show a Gantt chart for tasks."""
     fig, ax = plt.subplots()  # Create figure
     for task in tasks:
-        start = mdates.date2num(task.start_time)
-        end = mdates.date2num(task.end_time)
-        ax.barh(task.name, end - start, left=start, align='center')  # Add task bar
+        start = mdates.date2num(task.start_time)  # Convert start time to numeric format
+        end = mdates.date2num(task.end_time)  # Convert end time to numeric format
+        ax.barh(task.name, end - start, left=start, align='center', color='skyblue' if task.task_type == 'Personal' else 'orange')  # Color by task type
+    
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))  # Format time on x-axis
     ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))  # Set hour intervals
-    ax.set_xlim(mdates.dates2num(min(task.start_time for task in tasks)),
+    
+    # Set limits using the correct method 'date2num' instead of 'dates2num'
+    ax.set_xlim(mdates.date2num(min(task.start_time for task in tasks)),
                 mdates.date2num(max(task.end_time for task in tasks)))  # Set limits
+    
     plt.xlabel("Time")
     plt.ylabel("Tasks")
     plt.title("Task Schedule Gantt Chart")
@@ -62,12 +74,31 @@ def plot_gantt_chart(tasks):
 # Function to check reminders
 def check_for_reminders(tasks, current_time):
     """Check for approaching or missed task deadlines."""
+    reminders = []  # List to hold reminders to be displayed in the GUI
     for task in tasks:
         time_to_deadline = task.deadline - current_time
         if timedelta(minutes=0) <= time_to_deadline <= timedelta(hours=1):
-            messagebox.showinfo("Reminder", f"Task '{task.name}' deadline is approaching!")  # Notify upcoming deadline
+            reminders.append(f"Reminder: Task '{task.name}' deadline is approaching!")  # Upcoming deadline
         elif time_to_deadline < timedelta(minutes=0):
-            messagebox.showwarning("Missed Deadline", f"Task '{task.name}' has missed its deadline!")  # Warn missed deadline
+            reminders.append(f"Missed Deadline: Task '{task.name}' has missed its deadline!")  # Missed deadline
+    return reminders
+
+# Function to analyze busy time slots
+def analyze_busy_slots(tasks, time_interval=30):
+    """Analyze busy time slots based on task density within specified time intervals (in minutes)."""
+    time_slots = {}  # Dictionary to store time slots and their task count
+    for task in tasks:
+        start = task.start_time
+        end = task.end_time
+        while start < end:
+            # Round to nearest time interval (e.g., 30 minutes)
+            rounded_time = start.replace(second=0, microsecond=0, minute=(start.minute // time_interval) * time_interval)
+            time_slots[rounded_time] = time_slots.get(rounded_time, 0) + 1
+            start += timedelta(minutes=time_interval)
+    
+    # Find the time slot with the maximum task density
+    max_density_time = max(time_slots, key=time_slots.get)
+    return max_density_time, time_slots[max_density_time]
 
 # Main application class
 class TaskSchedulerApp:
@@ -75,10 +106,11 @@ class TaskSchedulerApp:
         """Setup the main window and task list."""
         self.root = root
         self.root.title("Task Scheduler")  # Set title
-        self.root.geometry("600x550")  # Set size
+        self.root.geometry("600x600")  # Set size (increased to accommodate reminder area)
         self.root.configure(bg="#2c3e50")  # Set background color
         self.tasks = []  # Initialize task list
 
+        self.reminder_label = None  # Label for reminders
         self.create_widgets()  # Create GUI components
 
     def create_widgets(self):
@@ -87,6 +119,13 @@ class TaskSchedulerApp:
         self.create_form_inputs()  # Add input fields for tasks
         self.create_buttons()  # Add action buttons
         self.create_footer()  # Add footer
+
+        # Create reminder label to display upcoming and missed deadlines
+        self.reminder_label = tk.Label(self.root, text="", font=("Helvetica", 12), fg="#e74c3c", bg="#2c3e50", justify="left")
+        self.reminder_label.pack(pady=20, padx=20, fill='x')  # Add padding and set alignment
+
+        # Periodic reminder check every 60 seconds
+        self.root.after(60000, self.check_and_update_reminders)
 
     def create_header(self):
         """Create header with title."""
@@ -151,16 +190,6 @@ class TaskSchedulerApp:
             command=self.view_gantt_chart
         ).pack(side='left', padx=10)  # Add left
 
-        # Check reminders button
-        tk.Button(
-            button_frame,
-            text="Check Reminders",
-            font=("Helvetica", 12),
-            fg="#ecf0f1",
-            bg="#e74c3c",
-            command=self.check_reminders
-        ).pack(side='left', padx=10)  # Add left
-
     def create_footer(self):
         """Create footer with copyright information."""
         footer_label = tk.Label(
@@ -199,18 +228,128 @@ class TaskSchedulerApp:
     def view_gantt_chart(self):
         """Display tasks in a Gantt chart."""
         if self.tasks:
-            sorted_tasks = quick_sort(self.tasks)  # Sort tasks
+            sort_by = "priority"  # Or use any other sorting criteria
+            sorted_tasks = sort_tasks(self.tasks, by=sort_by)  # Sort tasks by the chosen criteria
             plot_gantt_chart(sorted_tasks)  # Show Gantt chart
         else:
             messagebox.showinfo("No Tasks", "You need to add tasks to view the Gantt chart.")  # No tasks message
 
-    def check_reminders(self):
-        """Check for any task reminders."""
+    def check_and_update_reminders(self):
+        """Check and update reminders every minute."""
         current_time = datetime.now()  # Get current time
-        check_for_reminders(self.tasks, current_time)  # Check reminders
+        reminders = check_for_reminders(self.tasks, current_time)  # Get reminders
+        if reminders:
+            self.reminder_label.config(text="\n".join(reminders))  # Update reminder label with reminders
+        else:
+            self.reminder_label.config(text="No upcoming or missed deadlines.")  # Reset if no reminders
+        self.root.after(60000, self.check_and_update_reminders)  # Re-check after 60 seconds
 
 # Main execution
 if __name__ == "__main__":
     root = tk.Tk()  # Create the main window
     app = TaskSchedulerApp(root)  # Start the application
     root.mainloop()  # Run the GUI event loop
+"""
+
+Example Tasks for Gantt Chart
+Task 1
+
+Name: "Task A"
+Type: "Personal"
+Priority: 3
+Start Time: 09:00
+End Time: 11:00
+Deadline: 2024-11-23 12:00
+Task A
+
+Name: "Task B"
+Type: "Academic"
+Priority: 5
+Start Time: 10:30
+End Time: 13:00
+Deadline: 2024-11-23 15:00
+Task B
+
+Name: "Task C"
+Type: "Personal"
+Priority: 2
+Start Time: 13:00
+End Time: 15:30
+Deadline: 2024-11-23 16:00
+Task C
+
+Name: "Task D"
+Type: "Academic"
+Priority: 4
+Start Time: 14:30
+End Time: 17:00
+Deadline: 2024-11-23 18:00
+Task D
+
+Name: "Task A"
+Type: "Personal"
+Priority: 1
+Start Time: 16:00
+End Time: 18:00
+Deadline: 2024-11-23 19:00
+How to Input These Tasks into the GUI
+Add Task A (Task A):
+
+Task Name: "Task B"
+Task Type: "Personal"
+Priority: 3
+Start Time: 09:00
+End Time: 11:00
+Deadline: 2024-11-23 12:00
+Add Task B (Task B):
+
+Task Name: "Task B"
+Task Type: "Academic"
+Priority: 5
+Start Time: 10:30
+End Time: 13:00
+Deadline: 2024-11-23 15:00
+Add Task 3 (Task C):
+
+Task Name: "Task C"
+Task Type: "Personal"
+Priority: 2
+Start Time: 13:00
+End Time: 15:30
+Deadline: 2024-11-23 16:00
+Add Task 4 (Task D):
+
+Task Name: "Task D"
+Task Type: "Academic"
+Priority: 4
+Start Time: 14:30
+End Time: 17:00
+Deadline: 2024-11-23 18:00
+Add Task 5 (Task E):
+
+Task Name: "Task E"
+Task Type: "Personal"
+Priority: 1
+Start Time: 16:00
+End Time: 18:00
+Deadline: 2024-11-23 19:00
+What Happens in the Gantt Chart:
+When you View Gantt Chart after adding the tasks, the chart will display a horizontal bar for each task, aligned with their respective start and end times.
+Task A will be shown from 09:00 to 11:00.
+Task B will be shown from 10:30 to 13:00.
+Task C will be shown from 13:00 to 15:30.
+Task D will be shown from 14:30 to 17:00.
+Task E will be shown from 16:00 to 18:00.
+Visualization of the Gantt Chart:
+The Gantt chart will be a horizontal bar chart, with the Y-axis showing the task names (e.g., Task A, Task B, Task C, etc.), and the X-axis showing the time (with hours marked on the X-axis). Each task will be represented by a horizontal bar where:
+
+The left side of the bar represents the start time of the task.
+The right side of the bar represents the end time of the task.
+The bar length will represent the duration of the task.
+For example:
+
+"Task A" will have a bar starting at 09:00 and ending at 11:00.
+"Task B" will have a bar starting at 10:30 and ending at 13:00, partially overlapping with "Task A".
+"Task C" will have a bar starting at 13:00 and ending at 15:30, overlapping with both "Task B" and "Task D".
+"Task D" will have a bar starting at 14:30 and ending at 17:00, overlapping with "Task C" and "Task E".
+"Task E" will have a bar starting at 16:00 and ending at 18:00, overlapping with "Task D".""" 
