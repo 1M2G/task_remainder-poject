@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 from dataclasses import dataclass
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
+import bisect
 
 # Task data structure
 @dataclass
@@ -20,6 +21,12 @@ class Task:
         """Return a string representation of the task."""
         return f"Task: {self.name}, Type: {self.task_type}, Priority: {self.priority} - From {self.start_time:%H:%M} to {self.end_time:%H:%M}"
 
+    def __lt__(self, other):
+        """Define how to compare two Task objects."""
+        if not isinstance(other, Task):
+            return NotImplemented
+        return self.end_time < other.end_time  # Compare by end time (or use another field like start_time or priority)
+
 # Function to schedule tasks
 def schedule_tasks(tasks, max_time):
     """Use dynamic programming to schedule tasks for maximum priority."""
@@ -31,29 +38,35 @@ def schedule_tasks(tasks, max_time):
             dp[i] = max(dp[i], dp[i - duration] + task.priority)  # Maximize priority
     return dp[max_time]
 
-# QuickSort function for sorting tasks
-def quick_sort(tasks):
-    """Sort tasks using QuickSort."""
-    if len(tasks) <= 1:
-        return tasks
-    pivot = tasks[len(tasks) // 2]  # Choose a pivot task
-    left = [x for x in tasks if x < pivot]  # Tasks less than pivot
-    middle = [x for x in tasks if x == pivot]  # Tasks equal to pivot
-    right = [x for x in tasks if x > pivot]  # Tasks greater than pivot
-    return quick_sort(left) + middle + quick_sort(right)  # Return sorted tasks
+# Sorting function for tasks
+def sort_tasks(tasks, by="priority"):
+    """Sort tasks by priority, start time, end time, or task type."""
+    if by == "priority":
+        tasks.sort(key=lambda x: x.priority, reverse=True)  # Sort by priority (high to low)
+    elif by == "start_time":
+        tasks.sort(key=lambda x: x.start_time)  # Sort by start time
+    elif by == "end_time":
+        tasks.sort(key=lambda x: x.end_time)  # Sort by end time
+    elif by == "task_type":
+        tasks.sort(key=lambda x: x.task_type)  # Sort by task type
+    return tasks
 
 # Function to plot Gantt chart
 def plot_gantt_chart(tasks):
     """Create and show a Gantt chart for tasks."""
     fig, ax = plt.subplots()  # Create figure
     for task in tasks:
-        start = mdates.date2num(task.start_time)
-        end = mdates.date2num(task.end_time)
-        ax.barh(task.name, end - start, left=start, align='center')  # Add task bar
+        start = mdates.date2num(task.start_time)  # Convert start time to numeric format
+        end = mdates.date2num(task.end_time)  # Convert end time to numeric format
+        ax.barh(task.name, end - start, left=start, align='center', color='skyblue' if task.task_type == 'Personal' else 'orange')  # Color by task type
+    
     ax.xaxis.set_major_formatter(mdates.DateFormatter('%H:%M'))  # Format time on x-axis
     ax.xaxis.set_major_locator(mdates.HourLocator(interval=1))  # Set hour intervals
-    ax.set_xlim(mdates.dates2num(min(task.start_time for task in tasks)),
+    
+    # Set limits using the correct method 'date2num' instead of 'dates2num'
+    ax.set_xlim(mdates.date2num(min(task.start_time for task in tasks)),
                 mdates.date2num(max(task.end_time for task in tasks)))  # Set limits
+    
     plt.xlabel("Time")
     plt.ylabel("Tasks")
     plt.title("Task Schedule Gantt Chart")
@@ -62,12 +75,55 @@ def plot_gantt_chart(tasks):
 # Function to check reminders
 def check_for_reminders(tasks, current_time):
     """Check for approaching or missed task deadlines."""
+    reminders = []  # List to hold reminders to be displayed in the GUI
     for task in tasks:
         time_to_deadline = task.deadline - current_time
         if timedelta(minutes=0) <= time_to_deadline <= timedelta(hours=1):
-            messagebox.showinfo("Reminder", f"Task '{task.name}' deadline is approaching!")  # Notify upcoming deadline
+            reminders.append(f"Reminder: Task '{task.name}' deadline is approaching!")  # Upcoming deadline
         elif time_to_deadline < timedelta(minutes=0):
-            messagebox.showwarning("Missed Deadline", f"Task '{task.name}' has missed its deadline!")  # Warn missed deadline
+            reminders.append(f"Missed Deadline: Task '{task.name}' has missed its deadline!")  # Missed deadline
+    return reminders
+
+# Function to analyze busy time slots
+def analyze_busy_slots(tasks, time_interval=30):
+    """Analyze busy time slots based on task density within specified time intervals (in minutes)."""
+    time_slots = {}  # Dictionary to store time slots and their task count
+    for task in tasks:
+        start = task.start_time
+        end = task.end_time
+        while start < end:
+            # Round to nearest time interval (e.g., 30 minutes)
+            rounded_time = start.replace(second=0, microsecond=0, minute=(start.minute // time_interval) * time_interval)
+            time_slots[rounded_time] = time_slots.get(rounded_time, 0) + 1
+            start += timedelta(minutes=time_interval)
+    
+    # Find the time slot with the maximum task density
+    max_density_time = max(time_slots, key=time_slots.get)
+    return max_density_time, time_slots[max_density_time]
+
+# Searching functions
+def search_task_by_name(tasks, task_name):
+    """Search for a task by its name."""
+    for task in tasks:
+        if task.name.lower() == task_name.lower():
+            return task  # Return the task if the name matches
+    return None  # Return None if no task is found with the given name
+
+def search_tasks_by_deadline(tasks, deadline_range_start, deadline_range_end):
+    """Search for tasks within a specific deadline range."""
+    result = []
+    for task in tasks:
+        if deadline_range_start <= task.deadline <= deadline_range_end:
+            result.append(task)  # Add matching task to the result list
+    return result  # Return list of tasks found within the deadline range
+
+def search_tasks_by_priority(tasks, priority_level):
+    """Search for tasks with a specific priority."""
+    result = []
+    for task in tasks:
+        if task.priority == priority_level:
+            result.append(task)  # Add task to list if it matches the priority
+    return result  # Return list of tasks with the given priority
 
 # Main application class
 class TaskSchedulerApp:
@@ -75,10 +131,11 @@ class TaskSchedulerApp:
         """Setup the main window and task list."""
         self.root = root
         self.root.title("Task Scheduler")  # Set title
-        self.root.geometry("600x550")  # Set size
+        self.root.geometry("600x600")  # Set size (increased to accommodate reminder area)
         self.root.configure(bg="#2c3e50")  # Set background color
         self.tasks = []  # Initialize task list
 
+        self.reminder_label = None  # Label for reminders
         self.create_widgets()  # Create GUI components
 
     def create_widgets(self):
@@ -87,6 +144,16 @@ class TaskSchedulerApp:
         self.create_form_inputs()  # Add input fields for tasks
         self.create_buttons()  # Add action buttons
         self.create_footer()  # Add footer
+
+        # Create reminder label to display upcoming and missed deadlines
+        self.reminder_label = tk.Label(self.root, text="", font=("Helvetica", 12), fg="#e74c3c", bg="#2c3e50", justify="left")
+        self.reminder_label.pack(pady=20, padx=20, fill='x')  # Add padding and set alignment
+
+        # Periodic reminder check every 60 seconds
+        self.root.after(60000, self.check_and_update_reminders)
+
+        # Create search input and button
+        self.create_search_widgets()
 
     def create_header(self):
         """Create header with title."""
@@ -119,98 +186,94 @@ class TaskSchedulerApp:
         self.task_type_var = tk.StringVar(value="Personal")  # Default value
         tk.OptionMenu(input_frame, self.task_type_var, "Personal", "Academic").grid(row=1, column=1, padx=10, pady=5, sticky='ew')
 
-        # Priority dropdown
-        self.priority_var = tk.IntVar(value=1)  # Default value
-        tk.OptionMenu(input_frame, self.priority_var, *range(1, 6)).grid(row=2, column=1, padx=10, pady=5, sticky='ew')
-
-        # Configure column expansion
-        input_frame.columnconfigure(1, weight=1)  # Make second column resizeable
-
     def create_buttons(self):
-        """Create buttons for task management."""
-        button_frame = tk.Frame(self.root, bg="#2c3e50")  # Frame for buttons
-        button_frame.pack(pady=20)  # Add padding
+        """Create action buttons for adding tasks, plotting, sorting, etc."""
+        button_frame = tk.Frame(self.root, bg="#2c3e50")
+        button_frame.pack(pady=10)  # Add padding around buttons
 
-        # Add task button
-        tk.Button(
-            button_frame,
-            text="Add Task",
-            font=("Helvetica", 12),
-            fg="#ecf0f1",
-            bg="#2980b9",
-            command=self.add_task
-        ).pack(side='left', padx=10)  # Add left
+        # Buttons for adding task, showing tasks, plotting, etc.
+        self.add_task_button = tk.Button(button_frame, text="Add Task", command=self.add_task, font=("Helvetica", 12), bg="#3498db", fg="#ecf0f1")
+        self.add_task_button.grid(row=0, column=0, padx=10, pady=5)
 
-        # View Gantt chart button
-        tk.Button(
-            button_frame,
-            text="View Gantt Chart",
-            font=("Helvetica", 12),
-            fg="#ecf0f1",
-            bg="#2980b9",
-            command=self.view_gantt_chart
-        ).pack(side='left', padx=10)  # Add left
+        self.sort_button = tk.Button(button_frame, text="Sort Tasks by Priority", command=self.sort_tasks, font=("Helvetica", 12), bg="#2ecc71", fg="#ecf0f1")
+        self.sort_button.grid(row=0, column=1, padx=10, pady=5)
 
-        # Check reminders button
-        tk.Button(
-            button_frame,
-            text="Check Reminders",
-            font=("Helvetica", 12),
-            fg="#ecf0f1",
-            bg="#e74c3c",
-            command=self.check_reminders
-        ).pack(side='left', padx=10)  # Add left
+        self.plot_button = tk.Button(button_frame, text="Plot Gantt Chart", command=self.plot_gantt_chart, font=("Helvetica", 12), bg="#9b59b6", fg="#ecf0f1")
+        self.plot_button.grid(row=0, column=2, padx=10, pady=5)
 
     def create_footer(self):
-        """Create footer with copyright information."""
+        """Create footer for additional information or controls."""
         footer_label = tk.Label(
             self.root,
-            text="© 2023 Task Scheduler",
-            font=("Helvetica", 10),
+            text="© 2024 TaskSchedulerApp",
+            font=("Helvetica", 8),
             fg="#bdc3c7",
             bg="#2c3e50"
         )
-        footer_label.pack(side='bottom', pady=15)  # Add padding at the bottom
+        footer_label.pack(side="bottom", pady=10)  # Add padding around footer
+
+    def create_search_widgets(self):
+        """Create search input field and button."""
+        search_frame = tk.Frame(self.root, bg="#2c3e50")
+        search_frame.pack(padx=20, pady=10, fill='x')  # Add padding around the frame
+
+        # Search entry and button
+        self.search_entry = tk.Entry(search_frame, font=("Helvetica", 12), bg="#ecf0f1")
+        self.search_entry.grid(row=0, column=0, padx=10, pady=5, sticky='ew')
+
+        self.search_button = tk.Button(search_frame, text="Search", font=("Helvetica", 12), bg="#f39c12", fg="#ecf0f1", command=self.on_search_button_click)
+        self.search_button.grid(row=0, column=1, padx=10, pady=5)
 
     def add_task(self):
-        """Add a new task based on user input."""
+        """Callback for adding a new task."""
         try:
-            # Get task input
+            # Get task details from input fields
             name = self.task_entries[0].get()
             task_type = self.task_type_var.get()
-            priority = self.priority_var.get()
-            start_time = datetime.strptime(self.task_entries[3].get(), "%H:%M")  # Parse start time
-            end_time = datetime.strptime(self.task_entries[4].get(), "%H:%M")  # Parse end time
-            deadline = datetime.strptime(self.task_entries[5].get(), "%Y-%m-%d %H:%M")  # Parse deadline
+            priority = int(self.task_entries[2].get())
+            start_time = datetime.strptime(self.task_entries[3].get(), "%H:%M")
+            end_time = datetime.strptime(self.task_entries[4].get(), "%H:%M")
+            deadline = datetime.strptime(self.task_entries[5].get(), "%Y-%m-%d %H:%M")
 
-            # Validate time
-            if start_time >= end_time:
-                raise ValueError("Start time must be before end time.")
-
-            # Create and store task
+            # Create new Task object and add to the task list
             task = Task(name, task_type, priority, start_time, end_time, deadline)
             self.tasks.append(task)
-            messagebox.showinfo("Task Added", f"Task '{name}' has been added!")  # Confirmation message
-        except ValueError as ve:
-            messagebox.showerror("Input Error", str(ve))  # Show error for invalid input
+            messagebox.showinfo("Success", "Task added successfully!")
         except Exception as e:
-            messagebox.showerror("Error", "Please check your inputs.")  # General error message
+            messagebox.showerror("Error", f"Failed to add task: {e}")
 
-    def view_gantt_chart(self):
-        """Display tasks in a Gantt chart."""
-        if self.tasks:
-            sorted_tasks = quick_sort(self.tasks)  # Sort tasks
-            plot_gantt_chart(sorted_tasks)  # Show Gantt chart
+    def on_search_button_click(self):
+        """Callback for search button click."""
+        task_name = self.search_entry.get()  # Get the task name from the search input field
+        task = search_task_by_name(self.tasks, task_name)
+        if task:
+            messagebox.showinfo("Task Found", f"Task found: {task}")  # Show the task details
         else:
-            messagebox.showinfo("No Tasks", "You need to add tasks to view the Gantt chart.")  # No tasks message
+            messagebox.showwarning("No Task Found", f"No task found with the name '{task_name}'")
 
-    def check_reminders(self):
-        """Check for any task reminders."""
-        current_time = datetime.now()  # Get current time
-        check_for_reminders(self.tasks, current_time)  # Check reminders
+    def check_and_update_reminders(self):
+        """Check for reminders and update the UI."""
+        current_time = datetime.now()  # Get the current time
+        reminders = check_for_reminders(self.tasks, current_time)
+        if reminders:
+            self.reminder_label.config(text="\n".join(reminders))  # Update reminder label text
+        else:
+            self.reminder_label.config(text="")  # Clear reminder label if no reminders
+        # Re-run the reminder check after 60 seconds
+        self.root.after(60000, self.check_and_update_reminders)
 
-# Main execution
-if __name__ == "__main__":
-    root = tk.Tk()  # Create the main window
-    app = TaskSchedulerApp(root)  # Start the application
-    root.mainloop()  # Run the GUI event loop
+    def sort_tasks(self):
+        """Sort tasks based on priority and update the task list."""
+        sorted_tasks = sort_tasks(self.tasks, by="priority")  # Sort tasks by priority
+        messagebox.showinfo("Sorted Tasks", "\n".join(str(task) for task in sorted_tasks))  # Show sorted tasks
+
+    def plot_gantt_chart(self):
+        """Plot and display a Gantt chart for the tasks."""
+        plot_gantt_chart(self.tasks)
+
+# Create the main application window
+root = tk.Tk()
+app = TaskSchedulerApp(root)
+
+# Run the application
+root.mainloop()
