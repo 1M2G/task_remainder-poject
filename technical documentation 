@@ -1,0 +1,165 @@
+Technical Design Document for Personal Scheduling Assistant
+Overview
+This a desktop application is designed to help users efficiently 
+manage their tasks through a simple and user-friendly interface. The 
+application allows users to add tasks, visualize them on a Gantt chart,
+and set reminders for upcoming deadlines. The app uses algorithmic 
+techniques, such as dynamic programming for task scheduling and
+Merge Sort for sorting tasks, to optimize task management and 
+prioritization.
+Features
+ Task Manager: Users can create and manage tasks, specifying 
+details such as the task name, type, priority, start time, end time, 
+and deadline.
+ Dynamic Scheduling: The app uses dynamic programming to 
+efficiently schedule tasks, ensuring maximum prioritization within 
+the available time.
+ Task Sorting: Implements merge sort to sort tasks based on 
+criteria such as end time or priority.
+ Gantt Chart Visualization: Tasks are visually displayed on a Gantt 
+chart, allowing users to view their schedule over time.
+ Reminders: Users are alerted to tasks with upcoming deadlines or 
+those that have been missed.
+
+
+Here is a structured pseudocode breakdown for the Personal 
+Scheduling Assistant project, covering all major functionalities:
+1. Task Creation
+FUNCTION create_task(name, task_type, priority, start_time, end_time, 
+deadline):
+ VALIDATE that all inputs are valid:
+ - Priority is between 1 and 5
+ - Start time is before end time
+ - Deadline is after start time
+ 
+ IF validation fails:
+ DISPLAY error message and RETURN
+ CREATE a new Task object with the given details
+ ADD the Task object to the task list
+ DISPLAY success message
+2. Task Sorting (Using Merge Sort)
+FUNCTION merge_sort (tasks, key):
+ IF length of tasks <= 1:
+ RETURN tasks
+
+SPLIT tasks into two halves:
+ left_half = merge_sort (first half of tasks, key)
+ right_half = merge_sort second half of tasks, key)
+ RETURN merge left_half, right_half, key)
+FUNCTION merge(left, right, key):
+ INITIALIZE an empty list, sorted_tasks
+ WHILE left and right are not empty:
+ IF key (left[0]) <= key(right[0]):
+ ADD left [0] to sorted_tasks and REMOVE it from left
+ ELSE:
+ ADD right [0] to sorted_tasks and REMOVE it from right
+ 
+ ADD remaining elements from left and right to sorted_tasks
+ RETURN sorted_tasks
+3. Task Scheduling (Dynamic Programming)
+FUNCTION schedule_tasks (tasks, max_time):
+ SORT tasks by their end_time using merge_sort
+
+CREATE dp array of size (max_time + 1), initialized to 0
+ 
+ FOR each task IN tasks:
+ CALCULATE task_duration = (task.end_time - task.start_time) in 
+hours
+ FOR i from max_time to task_duration:
+ dp[i] = max(dp[i], dp[i - task_duration] + task.priority)
+ RETURN dp[max_time] # Maximum achievable priority
+4. Gantt Chart Visualization
+FUNCTION plot_gantt_chart (tasks):
+ INITIALIZE a new figure and axes for the Gantt chart
+ FOR each task IN tasks:
+ CONVERT task start_time and end_time to numeric format
+ PLOT a horizontal bar for the task using its start_time, end_time, 
+and color based on task_type
+ 
+ FORMAT the x-axis to show time in HH:MM format
+ SET chart title, x-axis label, and y-axis label
+ DISPLAY the chart
+5. Reminders for Deadlines
+
+FUNCTION check_for_reminders (tasks, current_time):
+ INITIALIZE reminders as an empty list
+ 
+ FOR each task IN tasks:
+ CALCULATE time_to_deadline = task.deadline - current_time
+ IF 0 <= time_to_deadline <= 1 hour:
+ ADD "Reminder: Task '{task.name}' deadline is approaching!" to 
+reminders
+ ELSE IF time_to_deadline < 0:
+ ADD "Missed Deadline: Task '{task.name}' has missed its 
+deadline!" to reminders
+ 
+ RETURN reminders
+6. Task Search
+a. Search by Name
+FUNCTION search_task_by_name (tasks, task_name):
+ FOR each task IN tasks:
+ IF task.name equals task_name (case insensitive):
+ RETURN task
+
+RETURN None # No task found
+b. Search by Deadline Range
+FUNCTION search_tasks_by_deadline(tasks, start_deadline, 
+end_deadline):
+ INITIALIZE result as an empty list
+ 
+ FOR each task IN tasks:
+ IF start_deadline <= task.deadline <= end_deadline:
+ ADD task to result
+ 
+ RETURN result
+c. Search by Priority
+FUNCTION search_tasks_by_priority (tasks, priority_level):
+ INITIALIZE result as an empty list
+ 
+ FOR each task IN tasks:
+ IF task.priority equals priority_level:
+ ADD task to result
+
+RETURN result
+7. Analyze Busy Time Slots
+FUNCTION analyze_busy_slots (tasks, time_interval):
+ INITIALIZE time_slots as an empty dictionary
+ 
+ FOR each task IN tasks:
+ SET start = task.start_time and end = task.end_time
+ WHILE start < end:
+ ROUND start to the nearest time_interval
+ INCREMENT time_slots [start] by 1
+ INCREMENT start by time_interval
+ 
+ FIND max_density_time = time slot with the maximum task count
+ RETURN max_density_time and its task count
+8. Graphical User Interface (GUI) Setup
+a. Task Form Creation
+
+FUNCTION create_task_form ():
+ CREATE input fields for task name, task type, priority, start time, end 
+time, and deadline
+ CREATE a dropdown menu for task type (e.g., Personal, Academic)
+ RETURN the form inputs
+b. Buttons and Actions
+FUNCTION create_buttons ():
+ CREATE buttons for "Add Task", "Sort Tasks", "Plot Gantt Chart", and 
+"Search Tasks"
+ ASSIGN appropriate callback functions to each button
+Example Use Case.
+1. A user needs to schedule a project with several tasks.
+2. They add tasks with details such as:
+○ Task1: Research (Start: 09:00,End:10:00,Deadline:2023-10-0112:00)
+○ Task2: Development (Start: 10:30,End:12:00,Deadline:2023-10-
+0212:00)
+3. After adding the tasks ,the user views the Gantt chart to see their
+daily schedule.
+4. The user checks reminders to be notified of any upcoming deadlines.
+
+Conclusion:
+This is a user friendly application that combines algorithmic
+scheduling with a simple and intuitive interface to help users manage 
+their tasks effectively. By using techniques such as dynamic
+programming and Merge Sort, the app optimizes task prioritization and 
+visualization, making it a valuable tool for personal task management.
