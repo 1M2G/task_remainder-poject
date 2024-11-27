@@ -38,18 +38,38 @@ def schedule_tasks(tasks, max_time):
             dp[i] = max(dp[i], dp[i - duration] + task.priority)  # Maximize priority
     return dp[max_time]
 
-# Sorting function for tasks
-def sort_tasks(tasks, by="priority"):
-    """Sort tasks by priority, start time, end time, or task type."""
-    if by == "priority":
-        tasks.sort(key=lambda x: x.priority, reverse=True)  # Sort by priority (high to low)
-    elif by == "start_time":
-        tasks.sort(key=lambda x: x.start_time)  # Sort by start time
-    elif by == "end_time":
-        tasks.sort(key=lambda x: x.end_time)  # Sort by end time
-    elif by == "task_type":
-        tasks.sort(key=lambda x: x.task_type)  # Sort by task type
-    return tasks
+# Merge Sort implementation
+def merge_sort(tasks, key):
+    """Sort the tasks using merge sort based on a given key."""
+    if len(tasks) <= 1:
+        return tasks
+    
+    # Divide the list in half
+    mid = len(tasks) // 2
+    left_half = merge_sort(tasks[:mid], key)
+    right_half = merge_sort(tasks[mid:], key)
+    
+    # Merge the sorted halves
+    return merge(left_half, right_half, key)
+
+def merge(left, right, key):
+    """Merge two sorted lists based on a given key."""
+    sorted_list = []
+    i = j = 0
+    
+    while i < len(left) and j < len(right):
+        if key(left[i]) <= key(right[j]):
+            sorted_list.append(left[i])
+            i += 1
+        else:
+            sorted_list.append(right[j])
+            j += 1
+    
+    # Append the remaining elements
+    sorted_list.extend(left[i:])
+    sorted_list.extend(right[j:])
+    
+    return sorted_list
 
 # Function to plot Gantt chart
 def plot_gantt_chart(tasks):
@@ -264,7 +284,7 @@ class TaskSchedulerApp:
 
     def sort_tasks(self):
         """Sort tasks based on priority and update the task list."""
-        sorted_tasks = sort_tasks(self.tasks, by="priority")  # Sort tasks by priority
+        sorted_tasks = merge_sort(self.tasks, by="priority")  # Sort tasks by priority
         messagebox.showinfo("Sorted Tasks", "\n".join(str(task) for task in sorted_tasks))  # Show sorted tasks
 
     def plot_gantt_chart(self):
