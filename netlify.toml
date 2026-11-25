@@ -1,0 +1,5 @@
+# The site is a static web app (no build step). The Python file in the repo
+# root is the original Tkinter desktop version and is not deployed.
+[build]
+  publish = "Mytasks"
+  command = ""

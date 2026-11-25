@@ -284,16 +284,17 @@ class TaskSchedulerApp:
 
     def sort_tasks(self):
         """Sort tasks based on priority and update the task list."""
-        sorted_tasks = merge_sort(self.tasks, by="priority")  # Sort tasks by priority
+        sorted_tasks = merge_sort(self.tasks, key=lambda t: t.priority)  # Sort tasks by priority
         messagebox.showinfo("Sorted Tasks", "\n".join(str(task) for task in sorted_tasks))  # Show sorted tasks
 
     def plot_gantt_chart(self):
         """Plot and display a Gantt chart for the tasks."""
         plot_gantt_chart(self.tasks)
 
-# Create the main application window
-root = tk.Tk()
-app = TaskSchedulerApp(root)
+if __name__ == "__main__":
+    # Create the main application window
+    root = tk.Tk()
+    app = TaskSchedulerApp(root)
 
-# Run the application
-root.mainloop()
+    # Run the application
+    root.mainloop()
