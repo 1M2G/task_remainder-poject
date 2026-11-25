@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Task Scheduler</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Task Scheduler</h1>
+    <p>Personal scheduling assistant — add tasks, sort them, chart them, and get deadline reminders.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>Add a task</h2>
+      <form id="task-form" novalidate>
+        <label>Task name <input name="name" required /></label>
+        <label>Task type
+          <select name="type">
+            <option>Personal</option>
+            <option>Academic</option>
+          </select>
+        </label>
+        <label>Priority (1–5) <input name="priority" type="number" min="1" max="5" value="3" required /></label>
+        <label>Start time <input name="start" type="time" required /></label>
+        <label>End time <input name="end" type="time" required /></label>
+        <label>Deadline <input name="deadline" type="datetime-local" required /></label>
+        <p id="form-message" class="message" role="status"></p>
+        <button type="submit" class="btn blue">Add Task</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <div class="row">
+        <h2>Tasks</h2>
+        <div class="actions">
+          <button id="sort-btn" class="btn green" type="button">Sort by Priority</button>
+          <button id="chart-btn" class="btn purple" type="button">Plot Gantt Chart</button>
+        </div>
+      </div>
+      <form id="search-form" class="search">
+        <input id="search-input" placeholder="Search task by name" />
+        <button class="btn orange" type="submit">Search</button>
+      </form>
+      <p id="search-result" class="message" role="status"></p>
+      <ul id="task-list"><li class="empty">No tasks yet.</li></ul>
+      <p id="schedule-info" class="muted"></p>
+    </section>
+
+    <section class="card" id="reminders-card">
+      <h2>Reminders</h2>
+      <ul id="reminders"><li class="empty">No reminders.</li></ul>
+    </section>
+
+    <section class="card hidden" id="chart-card">
+      <h2>Task Schedule Gantt Chart</h2>
+      <div id="chart"></div>
+    </section>
+  </main>
+
+  <footer>© 2024 TaskSchedulerApp</footer>
+  <script src="app.js"></script>
+</body>
+</html>
